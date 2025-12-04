@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>낱말 분류 퀴즈</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f7fafc;
+        }
+        .container-card {
+            max-width: 650px;
+            box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        /* 모드 버튼의 기본 스타일 (그림자, 전환 효과만 남기고 색상은 JS에서 동적으로 적용) */
+        .mode-button-base {
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            /* 내부 텍스트를 중앙에 정렬하기 위해 flex-col과 justify-center 추가 */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 112px; /* 버튼 높이 고정 */
+        }
+        .mode-button-base:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+        .quiz-button {
+            transition: all 0.2s;
+            transform: scale(1);
+        }
+        .quiz-button:hover:not(:disabled) {
+            transform: scale(1.02);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 bg-gray-100">
+
+    <div id="quiz-container" class="container-card w-full bg-white p-6 md:p-10 rounded-xl border border-blue-100">
+        <h1 class="text-4xl font-extrabold text-center text-blue-700 mb-6 border-b pb-3">낱말 분류 퀴즈</h1>
+        
+        <div id="loading-indicator" class="text-center p-8 text-lg text-gray-500">
+            CSV 낱말 데이터 로딩 중... 잠시만 기다려 주세요.
+        </div>
+        <div id="data-status-message" class="text-center text-sm mb-4 transition-opacity duration-500" style="opacity: 0;">
+            </div>
+
+        <div id="mode-selection-screen" class="hidden text-center">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-6">퀴즈 모드를 선택해 주세요</h2>
+            <div id="mode-options" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                </div>
+            <p id="word-count-info" class="mt-8 text-sm text-gray-500"></p>
+        </div>
+
+        <div id="quiz-content" class="hidden">
+            
+            <div class="flex justify-between items-center mb-6 border-b pb-2">
+                <div class="flex items-center space-x-4">
+                    <button id="back-to-mode-button" class="text-sm px-3 py-1 rounded-full border border-gray-300 text-gray-600 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300">
+                        ⬅️ 모드 선택
+                    </button>
+                    <p id="mode-title" class="text-xl font-bold text-gray-600">모드 제목</p>
+                </div>
+
+                <div id="timer-display" class="text-2xl font-extrabold text-red-600 hidden">
+                    시간: 60초
+                </div>
+            </div>
+
+            <div id="word-display" class="text-6xl font-extrabold text-center mb-8 p-4 bg-blue-50 text-blue-800 rounded-lg shadow-inner min-h-[100px] flex items-center justify-center">
+                </div>
+
+            <p class="text-lg text-gray-700 font-semibold mb-4 text-center">
+                이 낱말은 어떤 종류의 말일까요?
+            </p>
+
+            <div id="options-container" class="grid grid-cols-3 gap-3">
+                <button data-type="이름" class="quiz-button flex flex-col justify-center items-center w-full h-28 p-2 rounded-xl bg-indigo-500 text-white hover:bg-indigo-600 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition-colors duration-200">
+                    <span class="text-xl sm:text-2xl font-bold block leading-snug">이름</span>
+                    <span class="text-xs sm:text-sm font-medium opacity-80 mt-1 block">(명사)</span>
+                </button>
+                <button data-type="움직임" class="quiz-button flex flex-col justify-center items-center w-full h-28 p-2 rounded-xl bg-green-500 text-white hover:bg-green-600 focus:outline-none focus:ring-4 focus:ring-green-300 transition-colors duration-200">
+                    <span class="text-xl sm:text-2xl font-bold block leading-snug">움직임</span>
+                    <span class="text-xs sm:text-sm font-medium opacity-80 mt-1 block">(동사)</span>
+                </button>
+                <button data-type="성질/상태" class="quiz-button flex flex-col justify-center items-center w-full h-28 p-2 rounded-xl bg-yellow-500 text-white hover:bg-yellow-600 focus:outline-none focus:ring-4 focus:ring-yellow-300 transition-colors duration-200">
+                    <span class="text-xl sm:text-2xl font-bold block leading-snug">성질/상태</span>
+                    <span class="text-xs sm:text-sm font-medium opacity-80 mt-1 block">(형용사)</span>
+                </button>
+            </div>
+
+            <div id="feedback" class="mt-6 p-4 text-center rounded-lg font-bold hidden">
+                </div>
+            
+            <div class="mt-8 pt-4 border-t border-gray-200">
+                <p id="score-display" class="text-lg text-gray-600 text-center">
+                    점수: 0 / 0 (정답률: 0%)
+                </p>
+                <button id="next-button" class="quiz-button w-full py-3 mt-4 text-lg font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 hidden">
+                    다음 문제
+                </button>
+            </div>
+        </div>
+
+        <div id="result-screen" class="hidden text-center p-8 bg-blue-50 rounded-lg">
+            <h2 class="text-3xl font-extrabold text-blue-700 mb-4">퀴즈 결과</h2>
+            <p id="final-score" class="text-2xl font-bold text-gray-800 mb-6"></p>
+            <button id="restart-button" class="quiz-button w-full py-3 mt-4 text-lg font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300">
+                모드 다시 선택
+            </button>
+        </div>
+
+    </div>
+
+    <script type="module">
+        // --------------------------------------------------------
+        // 설정 및 변수
+        // --------------------------------------------------------
+
+        // 모드 설정에 새로운 라벨과 색상을 추가했습니다.
+        const MODES = [
+            { id: '10Q', label: '기초', count: 10, countText: '10개', time: 0, color: 'bg-green-600', hover: 'hover:bg-green-700' },
+            { id: '20Q', label: '실력', count: 20, countText: '20개', time: 0, color: 'bg-blue-600', hover: 'hover:bg-blue-700' },
+            // ⚠️ 100문제에서 50문제로 수정
+            { id: '50Q', label: '전문가', count: 50, countText: '50개', time: 0, color: 'bg-purple-600', hover: 'hover:bg-purple-700' }, 
+            { id: '60S', label: '스피드', count: 0, countText: '60초', time: 60, color: 'bg-red-600', hover: 'hover:bg-red-700' } 
+        ];
+
+// ====================================================================
+// ⚠️ 비상용 내장 데이터 (FALLBACK_WORDS_JSON)가 초등 어휘 40개 포함, 총 309개 낱말로 업데이트되었습니다.
+// CSV 파일 로드 실패 시 이 데이터가 사용됩니다.
+// ====================================================================
+const FALLBACK_WORDS_JSON = [
+    // --- 이름 (명사): 초등 교과서 어휘 (ID 1-40) ---
+    {"id": 1, "word": "감동", "correct_type": "이름"}, {"id": 2, "word": "게시판", "correct_type": "이름"}, {"id": 3, "word": "결과", "correct_type": "이름"}, 
+    {"id": 4, "word": "고려", "correct_type": "이름"}, {"id": 5, "word": "공장", "correct_type": "이름"}, {"id": 6, "word": "규칙", "correct_type": "이름"}, 
+    {"id": 7, "word": "기분", "correct_type": "이름"}, {"id": 8, "word": "당번", "correct_type": "이름"}, {"id": 9, "word": "동네", "correct_type": "이름"}, 
+    {"id": 10, "word": "목적", "correct_type": "이름"}, {"id": 11, "word": "가구", "correct_type": "이름"}, {"id": 12, "word": "갈등", "correct_type": "이름"}, 
+    {"id": 13, "word": "감시", "correct_type": "이름"}, {"id": 14, "word": "고령화", "correct_type": "이름"}, {"id": 15, "word": "권리", "correct_type": "이름"}, 
+    {"id": 16, "word": "교육", "correct_type": "이름"}, {"id": 17, "word": "규범", "correct_type": "이름"}, {"id": 18, "word": "금융", "correct_type": "이름"}, 
+    {"id": 19, "word": "명절", "correct_type": "이름"}, {"id": 20, "word": "문화", "correct_type": "이름"}, {"id": 21, "word": "가분수", "correct_type": "이름"}, 
+    {"id": 22, "word": "계표표", "correct_type": "이름"}, {"id": 23, "word": "공백", "correct_type": "이름"}, {"id": 24, "word": "공학자", "correct_type": "이름"}, 
+    {"id": 25, "word": "기록", "correct_type": "이름"}, {"id": 26, "word": "기호", "correct_type": "이름"}, {"id": 27, "word": "나눗셈", "correct_type": "이름"}, 
+    {"id": 28, "word": "단위", "correct_type": "이름"}, {"id": 29, "word": "대분수", "correct_type": "이름"}, {"id": 30, "word": "가치", "correct_type": "이름"}, 
+    {"id": 31, "word": "감염", "correct_type": "이름"}, {"id": 32, "word": "건강", "correct_type": "이름"}, {"id": 33, "word": "격리", "correct_type": "이름"}, 
+    {"id": 34, "word": "공감", "correct_type": "이름"}, {"id": 35, "word": "금지", "correct_type": "이름"}, {"id": 36, "word": "기체", "correct_type": "이름"}, 
+    {"id": 37, "word": "길이", "correct_type": "이름"}, {"id": 38, "word": "독감", "correct_type": "이름"}, {"id": 39, "word": "면역체", "correct_type": "이름"}, 
+    {"id": 40, "word": "대상", "correct_type": "이름"}, 
+
+    // --- 이름 (명사): 기존 낱말 (ID 41-100) ---
+    {"id": 41, "word": "자동차", "correct_type": "이름"}, {"id": 42, "word": "음악", "correct_type": "이름"}, {"id": 43, "word": "미술", "correct_type": "이름"}, 
+    {"id": 44, "word": "식물", "correct_type": "이름"}, {"id": 45, "word": "동물", "correct_type": "이름"}, {"id": 46, "word": "학교", "correct_type": "이름"}, 
+    {"id": 47, "word": "컴퓨터", "correct_type": "이름"}, {"id": 48, "word": "텔레비전", "correct_type": "이름"}, {"id": 49, "word": "신문", "correct_type": "이름"}, 
+    {"id": 50, "word": "책", "correct_type": "이름"}, {"id": 51, "word": "강아지", "correct_type": "이름"}, {"id": 52, "word": "엄마", "correct_type": "이름"}, 
+    {"id": 53, "word": "아빠", "correct_type": "이름"}, {"id": 54, "word": "하늘", "correct_type": "이름"}, {"id": 55, "word": "도시", "correct_type": "이름"}, 
+    {"id": 56, "word": "시골", "correct_type": "이름"}, {"id": 57, "word": "어머니", "correct_type": "이름"}, {"id": 58, "word": "책상", "correct_type": "이름"}, 
+    {"id": 59, "word": "의자", "correct_type": "이름"}, {"id": 60, "word": "전철", "correct_type": "이름"}, {"id": 61, "word": "우유", "correct_type": "이름"}, 
+    {"id": 62, "word": "사랑", "correct_type": "이름"}, {"id": 63, "word": "우정", "correct_type": "이름"}, {"id": 64, "word": "평화", "correct_type": "이름"}, 
+    {"id": 65, "word": "전쟁", "correct_type": "이름"}, {"id": 66, "word": "미래", "correct_type": "이름"}, {"id": 67, "word": "과거", "correct_type": "이름"}, 
+    {"id": 68, "word": "현재", "correct_type": "이름"}, {"id": 69, "word": "습관", "correct_type": "이름"}, {"id": 70, "word": "재능", "correct_type": "이름"}, 
+    {"id": 71, "word": "질문", "correct_type": "이름"}, {"id": 72, "word": "대답", "correct_type": "이름"}, {"id": 73, "word": "자전거", "correct_type": "이름"}, 
+    {"id": 74, "word": "가방", "correct_type": "이름"}, {"id": 75, "word": "컵", "correct_type": "이름"}, {"id": 76, "word": "접시", "correct_type": "이름"}, 
+    {"id": 77, "word": "젓가락", "correct_type": "이름"}, {"id": 78, "word": "수저", "correct_type": "이름"}, {"id": 79, "word": "열쇠", "correct_type": "이름"}, 
+    {"id": 80, "word": "주머니", "correct_type": "이름"}, {"id": 81, "word": "모자", "correct_type": "이름"}, {"id": 82, "word": "장갑", "correct_type": "이름"}, 
+    {"id": 83, "word": "양말", "correct_type": "이름"}, {"id": 84, "word": "운동화", "correct_type": "이름"}, {"id": 85, "word": "구두", "correct_type": "이름"}, 
+    {"id": 86, "word": "목도리", "correct_type": "이름"}, {"id": 87, "word": "휴대폰", "correct_type": "이름"}, {"id": 88, "word": "시계", "correct_type": "이름"}, 
+    {"id": 89, "word": "달력", "correct_type": "이름"}, {"id": 90, "word": "종이", "correct_type": "이름"}, {"id": 91, "word": "풀", "correct_type": "이름"}, 
+    {"id": 92, "word": "테이프", "correct_type": "이름"}, {"id": 93, "word": "가위", "correct_type": "이름"}, {"id": 94, "word": "소금", "correct_type": "이름"}, 
+    {"id": 95, "word": "설탕", "correct_type": "이름"}, {"id": 96, "word": "쌀", "correct_type": "이름"}, {"id": 97, "word": "김치", "correct_type": "이름"}, 
+    {"id": 98, "word": "된장", "correct_type": "이름"}, {"id": 99, "word": "고추장", "correct_type": "이름"}, {"id": 100, "word": "간장", "correct_type": "이름"}, 
+
+    // --- 움직임 (동사): ID 101-200 (100개) ---
+    {"id": 101, "word": "먹다", "correct_type": "움직임"}, {"id": 102, "word": "달리다", "correct_type": "움직임"}, {"id": 103, "word": "자다", "correct_type": "움직임"}, 
+    {"id": 104, "word": "읽다", "correct_type": "움직임"}, {"id": 105, "word": "쓰다", "correct_type": "움직임"}, {"id": 106, "word": "공부하다", "correct_type": "움직임"}, 
+    {"id": 107, "word": "헤엄치다", "correct_type": "움직임"}, {"id": 108, "word": "가르치다", "correct_type": "움직임"}, {"id": 109, "word": "돕다", "correct_type": "움직임"}, 
+    {"id": 110, "word": "짓다", "correct_type": "움직임"}, {"id": 111, "word": "숨 쉬다", "correct_type": "움직임"}, {"id": 112, "word": "놀다", "correct_type": "움직임"}, 
+    {"id": 113, "word": "말하다", "correct_type": "움직임"}, {"id": 114, "word": "듣다", "correct_type": "움직임"}, {"id": 115, "word": "보다", "correct_type": "움직임"}, 
+    {"id": 116, "word": "춤추다", "correct_type": "움직임"}, {"id": 117, "word": "뛰다", "correct_type": "움직임"}, {"id": 118, "word": "걷다", "correct_type": "움직임"}, 
+    {"id": 119, "word": "서다", "correct_type": "움직임"}, {"id": 120, "word": "앉다", "correct_type": "움직임"}, {"id": 121, "word": "열다", "correct_type": "움직임"}, 
+    {"id": 122, "word": "닫다", "correct_type": "움직임"}, {"id": 123, "word": "던지다", "correct_type": "움직임"}, {"id": 124, "word": "잡다", "correct_type": "움직임"}, 
+    {"id": 125, "word": "닦다", "correct_type": "움직임"}, {"id": 126, "word": "씻다", "correct_type": "움직임"}, {"id": 127, "word": "운전하다", "correct_type": "움직임"}, 
+    {"id": 128, "word": "만들다", "correct_type": "움직임"}, {"id": 129, "word": "부르다", "correct_type": "움직임"}, {"id": 130, "word": "그리다", "correct_type": "움직임"}, 
+    {"id": 131, "word": "가져오다", "correct_type": "움직임"}, {"id": 132, "word": "버리다", "correct_type": "움직임"}, {"id": 133, "word": "입다", "correct_type": "움직임"}, 
+    {"id": 134, "word": "벗다", "correct_type": "움직임"}, {"id": 135, "word": "울다", "correct_type": "움직임"}, {"id": 136, "word": "웃다", "correct_type": "움직임"}, 
+    {"id": 137, "word": "사다", "correct_type": "움직임"}, {"id": 138, "word": "팔다", "correct_type": "움직임"}, {"id": 139, "word": "이사하다", "correct_type": "움직임"}, 
+    {"id": 140, "word": "잃다", "correct_type": "움직임"}, {"id": 141, "word": "찾다", "correct_type": "움직임"}, {"id": 142, "word": "주다", "correct_type": "움직임"}, 
+    {"id": 143, "word": "받다", "correct_type": "움직임"}, {"id": 144, "word": "부탁하다", "correct_type": "움직임"}, {"id": 145, "word": "싸우다", "correct_type": "움직임"}, 
+    {"id": 146, "word": "화해하다", "correct_type": "움직임"}, {"id": 147, "word": "생각하다", "correct_type": "움직임"}, {"id": 148, "word": "기억하다", "correct_type": "움직임"}, 
+    {"id": 149, "word": "잊다", "correct_type": "움직임"}, {"id": 150, "word": "약속하다", "correct_type": "움직임"}, {"id": 151, "word": "시작하다", "correct_type": "움직임"}, 
+    {"id": 152, "word": "마치다", "correct_type": "움직임"}, {"id": 153, "word": "준비하다", "correct_type": "움직임"}, {"id": 154, "word": "떠나다", "correct_type": "움직임"}, 
+    {"id": 155, "word": "도착하다", "correct_type": "움직임"}, {"id": 156, "word": "걸리다", "correct_type": "움직임"}, {"id": 157, "word": "고치다", "correct_type": "움직임"}, 
+    {"id": 158, "word": "여행하다", "correct_type": "움직임"}, {"id": 159, "word": "구경하다", "correct_type": "움직임"}, {"id": 160, "word": "낚시하다", "correct_type": "움직임"}, 
+    {"id": 161, "word": "노래하다", "correct_type": "움직임"}, {"id": 162, "word": "쉬다", "correct_type": "움직임"}, {"id": 163, "word": "기다리다", "correct_type": "움직임"}, 
+    {"id": 164, "word": "데리다", "correct_type": "움직임"}, {"id": 165, "word": "오르다", "correct_type": "움직임"}, {"id": 166, "word": "내리다", "correct_type": "움직임"}, 
+    {"id": 167, "word": "피다", "correct_type": "움직임"}, {"id": 168, "word": "모이다", "correct_type": "움직임"}, {"id": 169, "word": "흩어지다", "correct_type": "움직임"}, 
+    {"id": 170, "word": "축하하다", "correct_type": "움직임"}, {"id": 171, "word": "계산하다", "correct_type": "움직임"}, {"id": 172, "word": "선물하다", "correct_type": "움직임"}, 
+    {"id": 173, "word": "빌리다", "correct_type": "움직임"}, {"id": 174, "word": "돌려주다", "correct_type": "움직임"}, {"id": 175, "word": "연습하다", "correct_type": "움직임"}, 
+    {"id": 176, "word": "도전하다", "correct_type": "움직임"}, {"id": 177, "word": "성장하다", "correct_type": "움직임"}, {"id": 178, "word": "발전하다", "correct_type": "움직임"}, 
+    {"id": 179, "word": "포기하다", "correct_type": "움직임"}, {"id": 180, "word": "취소하다", "correct_type": "움직임"}, {"id": 181, "word": "환영하다", "correct_type": "움직임"}, 
+    {"id": 182, "word": "배웅하다", "correct_type": "움직임"}, {"id": 183, "word": "가져가다", "correct_type": "움직임"}, {"id": 184, "word": "내려가다", "correct_type": "움직임"}, 
+    {"id": 185, "word": "올라오다", "correct_type": "움직임"}, {"id": 186, "word": "들어가다", "correct_type": "움직임"}, {"id": 187, "word": "나오다", "correct_type": "움직임"}, 
+    {"id": 188, "word": "바꾸다", "correct_type": "움직임"}, {"id": 189, "word": "연결하다", "correct_type": "움직임"}, {"id": 190, "word": "자르다", "correct_type": "움직임"}, 
+    {"id": 191, "word": "붙이다", "correct_type": "움직임"}, {"id": 192, "word": "떨어지다", "correct_type": "움직임"}, {"id": 193, "word": "터지다", "correct_type": "움직임"}, 
+    {"id": 194, "word": "무너지다", "correct_type": "움직임"}, {"id": 195, "word": "세우다", "correct_type": "움직임"}, {"id": 196, "word": "옮기다", "correct_type": "움직임"}, 
+    {"id": 197, "word": "가꾸다", "correct_type": "움직임"}, {"id": 198, "word": "심다", "correct_type": "움직임"}, {"id": 199, "word": "뽑다", "correct_type": "움직임"}, 
+    {"id": 200, "word": "바르다", "correct_type": "움직임"}, 
+
+    // --- 성질/상태 (형용사): ID 201-301 (101개) ---
+    {"id": 201, "word": "예쁘다", "correct_type": "성질/상태"}, {"id": 202, "word": "착하다", "correct_type": "성질/상태"}, {"id": 203, "word": "맵다", "correct_type": "성질/상태"}, 
+    {"id": 204, "word": "빠르다", "correct_type": "성질/상태"}, {"id": 205, "word": "맑다", "correct_type": "성질/상태"}, {"id": 206, "word": "시끄럽다", "correct_type": "성질/상태"}, 
+    {"id": 207, "word": "좁다", "correct_type": "성질/상태"}, {"id": 208, "word": "덥다", "correct_type": "성질/상태"}, {"id": 209, "word": "가볍다", "correct_type": "성질/상태"}, 
+    {"id": 210, "word": "어렵다", "correct_type": "성질/상태"}, {"id": 211, "word": "크다", "correct_type": "성질/상태"}, {"id": 212, "word": "작다", "correct_type": "성질/상태"}, 
+    {"id": 213, "word": "느리다", "correct_type": "성질/상태"}, {"id": 214, "word": "높다", "correct_type": "성질/상태"}, {"id": 215, "word": "낮다", "correct_type": "성질/상태"}, 
+    {"id": 216, "word": "깊다", "correct_type": "성질/상태"}, {"id": 217, "word": "넓다", "correct_type": "성질/상태"}, {"id": 218, "word": "길다", "correct_type": "성질/상태"}, 
+    {"id": 219, "word": "짧다", "correct_type": "성질/상태"}, {"id": 220, "word": "친절하다", "correct_type": "성질/상태"}, {"id": 221, "word": "조용하다", "correct_type": "성질/상태"}, 
+    {"id": 222, "word": "밝다", "correct_type": "성질/상태"}, {"id": 223, "word": "어둡다", "correct_type": "성질/상태"}, {"id": 224, "word": "따뜻하다", "correct_type": "성질/상태"}, 
+    {"id": 225, "word": "차갑다", "correct_type": "성질/상태"}, {"id": 226, "word": "굵다", "correct_type": "성질/상태"}, {"id": 227, "word": "얇다", "correct_type": "성질/상태"}, 
+    {"id": 228, "word": "시원하다", "correct_type": "성질/상태"}, {"id": 229, "word": "아름답다", "correct_type": "성질/상태"}, {"id": 230, "word": "강하다", "correct_type": "성질/상태"}, 
+    {"id": 231, "word": "약하다", "correct_type": "성질/상태"}, {"id": 232, "word": "달콤하다", "correct_type": "성질/상태"}, {"id": 233, "word": "싱겁다", "correct_type": "성질/상태"}, 
+    {"id": 234, "word": "무겁다", "correct_type": "성질/상태"}, {"id": 235, "word": "쉽다", "correct_type": "성질/상태"}, {"id": 236, "word": "괜찮다", "correct_type": "성질/상태"}, 
+    {"id": 237, "word": "정직하다", "correct_type": "성질/상태"}, {"id": 238, "word": "재미있다", "correct_type": "성질/상태"}, {"id": 239, "word": "고맙다", "correct_type": "성질/상태"}, 
+    {"id": 240, "word": "행복하다", "correct_type": "성질/상태"}, {"id": 241, "word": "슬프다", "correct_type": "성질/상태"}, {"id": 242, "word": "화나다", "correct_type": "성질/상태"}, 
+    {"id": 243, "word": "멋있다", "correct_type": "성질/상태"}, {"id": 244, "word": "귀엽다", "correct_type": "성질/상태"}, {"id": 245, "word": "배고프다", "correct_type": "성질/상태"}, 
+    {"id": 246, "word": "배부르다", "correct_type": "성질/상태"}, {"id": 247, "word": "목마르다", "correct_type": "성질/상태"}, {"id": 248, "word": "괴롭다", "correct_type": "성질/상태"}, 
+    {"id": 249, "word": "기쁘다", "correct_type": "성질/상태"}, {"id": 250, "word": "만족스럽다", "correct_type": "성질/상태"}, {"id": 251, "word": "지루하다", "correct_type": "성질/상태"}, 
+    {"id": 252, "word": "재미없다", "correct_type": "성질/상태"}, {"id": 253, "word": "고요하다", "correct_type": "성질/상태"}, {"id": 254, "word": "복잡하다", "correct_type": "성질/상태"}, 
+    {"id": 255, "word": "간단하다", "correct_type": "성질/상태"}, {"id": 256, "word": "튼튼하다", "correct_type": "성질/상태"}, {"id": 257, "word": "부드럽다", "correct_type": "성질/상태"}, 
+    {"id": 258, "word": "딱딱하다", "correct_type": "성질/상태"}, {"id": 259, "word": "비싸다", "correct_type": "성질/상태"}, {"id": 260, "word": "싸다", "correct_type": "성질/상태"}, 
+    {"id": 261, "word": "비슷하다", "correct_type": "성질/상태"}, {"id": 262, "word": "다르다", "correct_type": "성질/상태"}, {"id": 263, "word": "안전하다", "correct_type": "성질/상태"}, 
+    {"id": 264, "word": "위험하다", "correct_type": "성질/상태"}, {"id": 265, "word": "불가능하다", "correct_type": "성질/상태"}, {"id": 266, "word": "충분하다", "correct_type": "성질/상태"}, 
+    {"id": 267, "word": "부족하다", "correct_type": "성질/상태"}, {"id": 268, "word": "가능하다", "correct_type": "성질/상태"}, {"id": 269, "word": "놀랍다", "correct_type": "성질/상태"}, 
+    {"id": 270, "word": "자랑스럽다", "correct_type": "성질/상태"}, {"id": 271, "word": "두렵다", "correct_type": "성질/상태"}, {"id": 272, "word": "익숙하다", "correct_type": "성질/상태"}, 
+    {"id": 273, "word": "낯설다", "correct_type": "성질/상태"}, {"id": 274, "word": "소중하다", "correct_type": "성질/상태"}, {"id": 275, "word": "깔끔하다", "correct_type": "성질/상태"}, 
+    {"id": 276, "word": "더럽다", "correct_type": "성질/상태"}, {"id": 277, "word": "무서워하다", "correct_type": "성질/상태"}, {"id": 278, "word": "부끄럽다", "correct_type": "성질/상태"}, 
+    {"id": 279, "word": "어리석다", "correct_type": "성질/상태"}, {"id": 280, "word": "똑똑하다", "correct_type": "성질/상태"}, {"id": 281, "word": "외롭다", "correct_type": "성질/상태"}, 
+    {"id": 282, "word": "고독하다", "correct_type": "성질/상태"}, {"id": 283, "word": "따분하다", "correct_type": "성질/상태"}, {"id": 284, "word": "화창하다", "correct_type": "성질/상태"}, 
+    {"id": 285, "word": "흐리다", "correct_type": "성질/상태"}, {"id": 286, "word": "시큼하다", "correct_type": "성질/상태"}, {"id": 287, "word": "달다", "correct_type": "성질/상태"}, 
+    {"id": 288, "word": "쓰다", "correct_type": "성질/상태"}, {"id": 289, "word": "짜다", "correct_type": "성질/상태"}, {"id": 290, "word": "미끄럽다", "correct_type": "성질/상태"}, 
+    {"id": 291, "word": "거칠다", "correct_type": "성질/상태"}, {"id": 292, "word": "어색하다", "correct_type": "성질/상태"}, {"id": 293, "word": "자연스럽다", "correct_type": "성질/상태"}, 
+    {"id": 294, "word": "투명하다", "correct_type": "성질/상태"}, {"id": 295, "word": "불투명하다", "correct_type": "성질/상태"}, {"id": 296, "word": "신선하다", "correct_type": "성질/상태"}, 
+    {"id": 297, "word": "싱싱하다", "correct_type": "성질/상태"}, {"id": 298, "word": "오래되다", "correct_type": "성질/상태"}, {"id": 299, "word": "새롭다", "correct_type": "성질/상태"}, 
+    {"id": 300, "word": "부족하다", "correct_type": "성질/상태"}, {"id": 301, "word": "풍부하다", "correct_type": "성질/상태"},
+
+    // --- 이름 (명사): 기존 낱말 (ID 302-309) ---
+    {"id": 302, "word": "교실", "correct_type": "이름"}, {"id": 303, "word": "고향", "correct_type": "이름"}, {"id": 304, "word": "시청", "correct_type": "이름"}, 
+    {"id": 305, "word": "가족", "correct_type": "이름"}, {"id": 306, "word": "축구", "correct_type": "이름"}, {"id": 307, "word": "시간", "correct_type": "이름"}, 
+    {"id": 308, "word": "공책", "correct_type": "이름"}, {"id": 309, "word": "연필", "correct_type": "이름"}
+];
+// ====================================================================
+
+        let wordList = [];      // 전체 낱말 데이터
+        let currentWord = null;   // 현재 문제 낱말
+        let correctCount = 0;   // 정답 개수
+        let totalCount = 0;     // 전체 시도 횟수
+        let gameMode = null;    // 현재 선택된 모드 설정
+        let questionLimit = 0;  // 문제 개수 제한 (0이면 제한 없음)
+        let timeLimit = 0;      // 시간 제한 (초) (0이면 시간 모드 아님)
+        let timerId = null;     // 타이머 ID
+        let usedIds = new Set(); // 이미 출제된 ID를 저장하여 중복 출제 방지
+
+
+        // --------------------------------------------------------
+        // DOM 요소
+        // --------------------------------------------------------
+
+        const elements = {
+            loadingIndicator: document.getElementById('loading-indicator'),
+            dataStatusMessage: document.getElementById('data-status-message'),
+            modeSelectionScreen: document.getElementById('mode-selection-screen'),
+            modeOptions: document.getElementById('mode-options'),
+            wordCountInfo: document.getElementById('word-count-info'),
+            quizContent: document.getElementById('quiz-content'),
+            wordDisplay: document.getElementById('word-display'),
+            optionsContainer: document.getElementById('options-container'),
+            feedback: document.getElementById('feedback'),
+            nextButton: document.getElementById('next-button'),
+            scoreDisplay: document.getElementById('score-display'),
+            modeTitle: document.getElementById('mode-title'),
+            timerDisplay: document.getElementById('timer-display'),
+            resultScreen: document.getElementById('result-screen'),
+            finalScore: document.getElementById('final-score'),
+            restartButton: document.getElementById('restart-button'),
+            // 새로 추가된 뒤로가기 버튼
+            backToModeButton: document.getElementById('back-to-mode-button'),
+        };
+
+        /**
+         * 상태 메시지를 표시하고 일정 시간 후 사라지게 합니다.
+         */
+        function displayStatusMessage(text, isError = false) {
+            elements.dataStatusMessage.textContent = text;
+            elements.dataStatusMessage.classList.remove('text-green-600', 'text-red-500');
+            elements.dataStatusMessage.classList.add(isError ? 'text-red-500' : 'text-green-600');
+            elements.dataStatusMessage.style.opacity = 1;
+            
+            // 4초 후 메시지를 서서히 숨깁니다.
+            setTimeout(() => {
+                elements.dataStatusMessage.style.opacity = 0;
+            }, 4000);
+        }
+
+        // --------------------------------------------------------
+        // 데이터 로드 및 파싱 (CSV 우선, 실패 시 내장 JSON 사용)
+        // --------------------------------------------------------
+
+        /**
+         * CSV 텍스트를 파싱하여 객체 배열로 변환합니다.
+         */
+        function parseCSV(text) {
+            const lines = text.trim().split('\n');
+            if (lines.length < 2) return []; 
+
+            // 헤더 추출 및 소문자 변환
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+            const data = [];
+
+            const requiredHeaders = ['id', 'word', 'correct_type'];
+            const hasAllRequiredHeaders = requiredHeaders.every(h => headers.includes(h));
+            if (!hasAllRequiredHeaders) {
+                console.error("CSV 헤더 오류: 필수 헤더(id, word, correct_type)가 부족합니다.");
+                return [];
+            }
+
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(v => v.trim());
+                
+                if (values.length !== headers.length) continue; 
+
+                const row = {};
+                for (let j = 0; j < headers.length; j++) {
+                    row[headers[j]] = values[j];
+                }
+
+                // 유효성 검사 및 데이터 타입 변환
+                if (row.id && row.word && ['이름', '움직임', '성질/상태'].includes(row.correct_type)) {
+                    // ID는 숫자로 변환합니다.
+                    row.id = parseInt(row.id);
+                    data.push(row);
+                }
+            }
+            return data;
+        }
+
+        /**
+         * CSV 파일을 로드하거나, 실패 시 내장 JSON 데이터를 반환합니다.
+         */
+        async function loadData() {
+            try {
+                // 1. CSV 파일 로드 시도
+                const response = await fetch('./words_for_excel.csv'); 
+                
+                if (response.ok) {
+                    const csvText = await response.text();
+                    const parsedData = parseCSV(csvText);
+
+                    if (parsedData.length > 0) {
+                        displayStatusMessage(`✅ 'words_for_excel.csv' 파일에서 ${parsedData.length}개의 낱말을 성공적으로 로드했습니다.`, false);
+                        return parsedData;
+                    } else {
+                        // 파일은 찾았지만 내용이 비어있거나 유효하지 않은 경우
+                        throw new Error('CSV 파일은 찾았지만, 유효한 낱말 데이터가 없습니다.');
+                    }
+                } else {
+                    // 파일을 찾지 못한 경우 (404 Not Found 등)
+                    throw new Error(`'words_for_excel.csv' 파일을 찾을 수 없습니다. (상태 코드: ${response.status})`);
+                }
+            } catch (error) {
+                // CSV 로드 실패 시 내장 JSON 데이터 사용
+                console.warn("CSV 로드 실패. 내장 비상용 데이터를 사용합니다.", error.message);
+                
+                displayStatusMessage(`⚠️ CSV 로드 실패. 비상용 내장 낱말 ${FALLBACK_WORDS_JSON.length}개로 퀴즈를 시작합니다. ('words_for_excel.csv' 파일을 준비하시면 더 많은 낱말을 사용할 수 있습니다.)`, true);
+                
+                // 내장 데이터가 아예 비어있는 경우를 대비한 최종 점검
+                if (FALLBACK_WORDS_JSON.length === 0) {
+                     console.error("비상용 내장 데이터도 비어 있습니다.");
+                }
+                return FALLBACK_WORDS_JSON;
+            }
+        }
+        
+        // --------------------------------------------------------
+        // 뷰 관리 및 초기화
+        // --------------------------------------------------------
+
+        function showScreen(screenElement) {
+            // 모든 화면 숨기기
+            elements.modeSelectionScreen.classList.add('hidden');
+            elements.quizContent.classList.add('hidden');
+            elements.resultScreen.classList.add('hidden');
+            
+            // 요청된 화면 보이기
+            if (screenElement) {
+                screenElement.classList.remove('hidden');
+            }
+        }
+        
+        /**
+         * 모드 선택 화면을 설정하고 보여줍니다.
+         */
+        function setupModeSelection() {
+            elements.loadingIndicator.classList.add('hidden');
+            
+            if (wordList.length === 0) {
+                // 데이터가 전혀 없을 경우 오류 메시지 출력 후 종료
+                elements.loadingIndicator.textContent = "오류: 퀴즈를 진행할 수 있는 낱말 데이터가 없습니다.";
+                elements.loadingIndicator.classList.remove('hidden');
+                return;
+            }
+
+            elements.modeOptions.innerHTML = '';
+            MODES.forEach(mode => {
+                const button = document.createElement('button');
+                
+                // mode-button-base 스타일과 동적으로 설정된 색상 클래스를 적용
+                const colorClassesToRemove = ['bg-green-600', 'bg-blue-600', 'bg-purple-600', 'bg-red-600', 'hover:bg-green-700', 'hover:bg-blue-700', 'hover:bg-purple-700', 'hover:bg-red-700'];
+                
+                // 버튼에 기본 스타일 클래스 추가
+                button.className = 'mode-button-base w-full py-6 text-white rounded-xl shadow-lg';
+                
+                // 이전 모드 버튼의 스타일을 정리하고 새 색상 클래스를 추가합니다.
+                button.classList.remove(...colorClassesToRemove);
+                button.classList.add(mode.color, mode.hover);
+
+                // 사용자 요청에 따라 문구와 글자 크기를 조정합니다.
+                button.innerHTML = `
+                    <span class="text-3xl font-bold">${mode.label}</span>
+                    <span class="text-sm font-medium opacity-80 mt-1 block">(${mode.countText})</span>
+                `;
+                
+                button.onclick = () => selectMode(mode);
+                elements.modeOptions.appendChild(button);
+            });
+
+            // 낱말 개수 정보를 업데이트합니다. (205개 이상으로 증가)
+            elements.wordCountInfo.textContent = `현재 퀴즈에 사용할 수 있는 낱말은 총 ${wordList.length}개입니다.`;
+            showScreen(elements.modeSelectionScreen);
+        }
+
+        // --------------------------------------------------------
+        // 퀴즈 모드 및 타이머 관리
+        // --------------------------------------------------------
+        
+        /**
+         * 선택된 모드로 퀴즈를 시작합니다.
+         */
+        function selectMode(modeConfig) {
+            gameMode = modeConfig;
+            // 퀴즈 문제 수는 전체 단어 수를 초과할 수 없도록 조정
+            questionLimit = modeConfig.count > 0 ? Math.min(modeConfig.count, wordList.length) : 0;
+            timeLimit = modeConfig.time;
+            
+            // 점수 및 카운트 초기화
+            correctCount = 0;
+            totalCount = 0;
+            usedIds.clear();
+            stopTimer(); 
+
+            // 모드 타이틀 업데이트
+            elements.modeTitle.textContent = `${modeConfig.label} 퀴즈 (${modeConfig.countText})`; 
+            
+            elements.nextButton.classList.add('hidden'); // '다음 문제' 버튼은 이제 사용하지 않으므로 숨김
+
+            // 시간 모드 설정
+            if (timeLimit > 0) {
+                elements.timerDisplay.classList.remove('hidden');
+                elements.timerDisplay.textContent = `시간: ${timeLimit}초`;
+                startTimer(timeLimit);
+            } else {
+                elements.timerDisplay.classList.add('hidden');
+            }
+            
+            showScreen(elements.quizContent);
+            updateScore();
+            setupNextQuestion();
+        }
+
+        /**
+         * 타이머를 시작하고 1초마다 업데이트합니다.
+         */
+        function startTimer(duration) {
+            let timeLeft = duration;
+            elements.timerDisplay.textContent = `시간: ${timeLeft}초`;
+
+            timerId = setInterval(() => {
+                timeLeft--;
+                elements.timerDisplay.textContent = `시간: ${timeLeft}초`;
+
+                if (timeLeft <= 10) {
+                    elements.timerDisplay.classList.add('text-red-800', 'animate-pulse');
+                }
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timerId);
+                    endGame(true); // 시간 초과로 게임 종료
+                }
+            }, 1000);
+        }
+
+        /**
+         * 타이머를 중지합니다.
+         */
+        function stopTimer() {
+            if (timerId) {
+                clearInterval(timerId);
+                timerId = null;
+                elements.timerDisplay.classList.remove('text-red-800', 'animate-pulse');
+            }
+        }
+
+        /**
+         * 퀴즈를 종료하고 결과를 표시합니다.
+         */
+        function endGame(isTimeUp = false) {
+            stopTimer();
+
+            // 개선 사항 반영: 결과 화면 메시지 수정
+            const accuracy = totalCount === 0 ? 0 : ((correctCount / totalCount) * 100).toFixed(0);
+            
+            elements.finalScore.innerHTML = `
+                <p class="mb-2">🎉 ${gameMode.label} 퀴즈 종료 🎉</p>
+                <p class="text-4xl font-black text-blue-800">${correctCount}개 정답</p>
+                <p class="text-xl text-gray-600 mt-2">총 ${totalCount} 문제 중 정답률: ${accuracy}%</p>
+                <p class="text-lg text-gray-600 mt-4">${isTimeUp ? '시간이 초과되었습니다!' : '모든 문제를 마쳤습니다!'}</p>
+            `;
+            
+            showScreen(elements.resultScreen);
+        }
+
+        // --------------------------------------------------------
+        // 퀴즈 진행 로직
+        // --------------------------------------------------------
+        
+        /**
+         * 점수를 계산하고 화면에 업데이트하는 함수
+         */
+        function updateScore() {
+            const accuracy = totalCount === 0 ? 0 : ((correctCount / totalCount) * 100).toFixed(0);
+            
+            let progressText = '';
+            if (questionLimit > 0) {
+                progressText = `(진행률: ${totalCount} / ${questionLimit})`;
+            }
+
+            elements.scoreDisplay.textContent = `점수: ${correctCount} / ${totalCount} (정답률: ${accuracy}%) ${progressText}`;
+        }
+
+        function getNextWord() {
+            if (wordList.length === 0) return null;
+
+            // 이미 모든 낱말을 사용했으면 Set을 비우고 다시 시작 (순환 모드)
+            if (usedIds.size === wordList.length) {
+                usedIds.clear();
+            }
+
+            // 사용하지 않은 낱말 중에서 무작위로 하나 선택
+            const availableWords = wordList.filter(item => !usedIds.has(item.id));
+            if (availableWords.length === 0) return null;
+
+            const randomIndex = Math.floor(Math.random() * availableWords.length);
+            const nextWord = availableWords[randomIndex];
+            
+            usedIds.add(nextWord.id);
+            return nextWord;
+        }
+
+        function setupNextQuestion() {
+            // 문제 수 제한 모드일 경우, 제한을 초과했는지 확인
+            if (questionLimit > 0 && totalCount >= questionLimit) {
+                endGame(false);
+                return;
+            }
+
+            currentWord = getNextWord();
+            if (!currentWord) {
+                // 낱말 목록이 비어 있거나, 모든 낱말을 다 사용했을 때
+                endGame(false);
+                return;
+            }
+
+            elements.wordDisplay.textContent = currentWord.word;
+            elements.wordDisplay.style.backgroundColor = '#eff6ff'; // 배경색 초기화
+            elements.wordDisplay.style.color = '#1e40af'; // 텍스트색 초기화
+
+            // 버튼 초기화 및 활성화
+            elements.optionsContainer.querySelectorAll('button').forEach(button => {
+                button.disabled = false;
+                button.classList.remove('ring-4', 'ring-offset-2', 'ring-green-300', 'ring-red-300', 'bg-red-500');
+                
+                // 원래 색상으로 복구 
+                const type = button.getAttribute('data-type');
+                if (type === '이름') button.classList.add('bg-indigo-500');
+                if (type === '움직임') button.classList.add('bg-green-500');
+                if (type === '성질/상태') button.classList.add('bg-yellow-500');
+            });
+
+            elements.feedback.classList.add('hidden');
+            elements.nextButton.classList.add('hidden'); // 모든 모드에서 '다음 문제' 버튼 숨김
+        }
+
+        /**
+         * 답을 확인하고 점수를 업데이트하는 함수
+         */
+        function checkAnswer(selectedType, selectedButton) {
+            // 이미 답을 선택했거나, 퀴즈가 진행 중이 아닐 때 중복 클릭 방지
+            if (!currentWord || selectedButton.disabled) return; 
+
+            totalCount++; 
+            let isCorrect = (selectedType === currentWord.correct_type);
+            
+            // 모든 버튼 비활성화 (답을 한 번만 선택하도록)
+            elements.optionsContainer.querySelectorAll('button').forEach(button => {
+                button.disabled = true;
+            });
+            
+            elements.feedback.classList.remove('hidden');
+            
+            // 버튼 색깔 초기화 (정답 하이라이트를 위해)
+            elements.optionsContainer.querySelectorAll('button').forEach(button => {
+                 // 모든 버튼의 기본 색상 클래스를 제거 (나중에 정답/오답으로 다시 입혀야 함)
+                 button.classList.remove('bg-indigo-500', 'bg-green-500', 'bg-yellow-500', 'bg-red-500');
+            });
+
+
+            if (isCorrect) {
+                correctCount++; 
+                elements.feedback.textContent = `정답! "${currentWord.word}"는 ${currentWord.correct_type}을(를) 나타내는 말입니다.`;
+                elements.feedback.className = 'mt-6 p-4 text-center rounded-lg font-bold bg-green-100 text-green-700';
+                selectedButton.classList.add('bg-green-500', 'ring-4', 'ring-offset-2', 'ring-green-300');
+                elements.wordDisplay.style.backgroundColor = '#d1fae5'; // 연한 녹색
+            } else {
+                elements.feedback.textContent = `오답입니다. 정답은 "${currentWord.correct_type}"입니다.`;
+                elements.feedback.className = 'mt-6 p-4 text-center rounded-lg font-bold bg-red-100 text-red-700';
+                selectedButton.classList.add('bg-red-500', 'ring-4', 'ring-offset-2', 'ring-red-300');
+                elements.wordDisplay.style.backgroundColor = '#fee2e2'; // 연한 빨간색
+                
+                // 정답 버튼 표시 (원래 색상으로 돌아가면서 링을 추가)
+                elements.optionsContainer.querySelectorAll(`button[data-type="${currentWord.correct_type}"]`).forEach(button => {
+                    const type = button.getAttribute('data-type');
+                    if (type === '이름') button.classList.add('bg-indigo-500');
+                    if (type === '움직임') button.classList.add('bg-green-500');
+                    if (type === '성질/상태') button.classList.add('bg-yellow-500');
+
+                    button.classList.add('ring-4', 'ring-offset-2', 'ring-green-300');
+                });
+            }
+
+            updateScore(); // 점수 업데이트 함수 호출
+            
+            // 시간 모드이거나, 문제 수 제한 모드에서 아직 남은 문제가 있을 경우
+            if (timeLimit > 0 || totalCount < questionLimit) {
+                 // 0.8초 딜레이 후 다음 문제로 자동 전환
+                 setTimeout(setupNextQuestion, 800); 
+            } else {
+                // 문제 수 제한 모드에서 마지막 문제까지 풀었을 때 게임 종료
+                endGame(false);
+            }
+        }
+
+        // --------------------------------------------------------
+        // 이벤트 리스너 설정
+        // --------------------------------------------------------
+        
+        // 퀴즈 답 선택 이벤트
+        elements.optionsContainer.addEventListener('click', (event) => {
+            const button = event.target.closest('button');
+            if (button && button.hasAttribute('data-type')) {
+                checkAnswer(button.getAttribute('data-type'), button);
+            }
+        });
+
+        // '모드 다시 선택' 버튼 이벤트 (결과 화면에서 메인 화면으로 돌아가기)
+        elements.restartButton.addEventListener('click', () => {
+            setupModeSelection();
+        });
+        
+        // NEW: '뒤로가기' 버튼 이벤트 (퀴즈 진행 중 모드 선택 화면으로 돌아가기)
+        elements.backToModeButton.addEventListener('click', () => {
+            stopTimer(); // 타이머가 실행 중이면 중지
+            setupModeSelection(); // 모드 선택 화면으로 이동
+        });
+
+        // --------------------------------------------------------
+        // 초기 실행
+        // --------------------------------------------------------
+        window.onload = async () => {
+            wordList = await loadData();
+            
+            // 낱말 목록 로드 후 모드 선택 화면 표시
+            setupModeSelection();
+        };
+    </script>
+</body>
+</html>
