@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>초등 분수 마스터 앱</title>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@700&display=swap');
+        
+        body {
+            font-family: 'Nanum Gothic', sans-serif;
+            background-color: #f0f8ff; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            user-select: none;
+        }
+
+        .main-container {
+            width: 90%;
+            max-width: 600px;
+            background-color: white;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        /* 공통 버튼 스타일 */
+        button {
+            font-family: 'Nanum Gothic', sans-serif;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.1s ease;
+            color: white;
+            font-weight: bold;
+        }
+        button:active { transform: scale(0.98); }
+
+        /* 상태 바 (퀴즈용) */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+            padding-bottom: 20px;
+            border-bottom: 2px dashed #ddd;
+        }
+        #timer { color: #d9534f; }
+        #score { color: #0275d8; }
+
+        /* 분수 표시 CSS (공통) */
+        .fraction-display {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem; 
+            min-height: 80px; 
+        }
+        .whole-number {
+            font-size: 5rem;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .fraction {
+            display: inline-flex;
+            flex-direction: column;
+            text-align: center;
+            font-size: 2.8rem;
+        }
+        .numerator {
+            padding: 0 10px;
+            border-bottom: 3px solid black;
+        }
+        .denominator {
+            padding: 0 10px;
+        }
+        
+        /* 핵심: 화면 전환을 위한 클래스 */
+        .hidden {
+            display: none !important;
+        }
+
+        /* --- 0. 메뉴 선택 화면 --- */
+        #menu-screen {
+            text-align: center;
+            padding: 30px;
+        }
+        .menu-buttons button {
+            display: block;
+            width: 80%;
+            margin: 20px auto;
+            padding: 20px;
+            font-size: 1.5rem;
+            background-color: #5bc0de;
+        }
+
+        /* --- 1. 분수 배우기 (LEARN) 스타일 --- */
+        #learn-container {
+            text-align: center;
+        }
+        .concept-text {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+            min-height: 40px;
+            margin: 20px 0;
+        }
+        #pizza-area {
+            display: flex;
+            justify-content: center;
+            gap: 10px; 
+            margin-bottom: 30px;
+            overflow-x: auto;
+            padding: 10px;
+            min-height: 200px; 
+        }
+        .pizza-unit {
+            min-width: 180px; 
+            height: 180px; 
+            border-radius: 50%;
+            background-color: #fce8bf; 
+            border: 3px solid #a0522d; 
+            position: relative;
+        }
+        .control-buttons button {
+            font-size: 1.2rem;
+            padding: 10px 20px;
+            margin: 5px;
+            background-color: #5cb85c;
+        }
+        #add-slice, #remove-slice {
+            font-size: 2rem;
+            padding: 10px 30px;
+            background-color: #0275d8;
+        }
+        
+        /* SVG 피자 조각 스타일 */
+        .pizza-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .slice-path {
+            fill: none;
+            stroke: #a0522d;
+            stroke-width: 0.5; 
+        }
+        .slice-path.filled {
+            fill: rgba(220, 20, 60, 0.7);
+            stroke: rgba(180, 10, 40, 1.0);
+        }
+        
+        /* --- 2. 확인하기 (QUIZ) 스타일 --- */
+        .question-area {
+            min-height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .feedback {
+            text-align: center;
+            font-size: 3rem;
+            font-weight: bold;
+            min-height: 50px;
+        }
+        .correct { color: #0275d8; } 
+        .incorrect { color: #d9534f; } 
+        .answer-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .answer-buttons button {
+            padding: 20px;
+            font-size: 1.5rem;
+        }
+        .btn-proper { background-color: #f0ad4e; }
+        .btn-improper { background-color: #5cb85c; }
+        .btn-whole { background-color: #5bc0de; }
+        .btn-mixed { background-color: #d9534f; }
+
+        /* 💡 새로 추가된 설명 스타일 */
+        #quiz-note {
+            text-align: center;
+            font-size: 0.95rem; /* 작은 글씨 */
+            color: #0275d8; 
+            font-weight: bold;
+            margin: 0 0 15px 0; /* 버튼 위에 여백 */
+            padding: 10px;
+            border: 1px solid #d9edf7;
+            background-color: #f7fcfd;
+            border-radius: 8px;
+        }
+
+        /* 시작/결과 화면 스타일 */
+        #start-screen, #result-screen {
+             text-align: center; 
+             padding: 50px; 
+             border-radius: 15px;
+             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        #start-screen { background-color: #e6f7ff; }
+        #result-screen { background-color: #fff0e6; }
+        
+        #quiz-start-button { 
+            background-color: #0275d8; 
+            padding: 20px 40px; 
+            font-size: 1.8rem; 
+            margin-top: 25px; 
+            width: 80%; 
+        }
+        
+        #restart-button { background-color: #5cb85c; padding: 10px 20px; font-size: 1.2rem; margin-top: 15px; }
+
+        /* 최종 점수 강조 스타일 */
+        #final-score {
+            font-size: 3rem; 
+            font-weight: 900; 
+            color: #d9534f; 
+            margin: 0 5px;
+        }
+        #final-score-text {
+            font-size: 1.8rem;
+            margin-top: 10px; 
+        }
+
+        /* 분모 설정 요소 스타일 */
+        #denominator-input {
+            width: 60px;
+            padding: 8px;
+            font-size: 1.2rem;
+            text-align: center;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+        }
+        #set-custom-denominator {
+             background-color: #f0ad4e;
+             padding: 8px 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        
+        <div id="menu-screen">
+            <h1>🍕 초등 분수 마스터</h1>
+            <div class="menu-buttons">
+                <button id="go-learn-button">📚 분수 배우기 (피자 체험)</button>
+                <button id="go-quiz-button">⏱️ 확인하기 (퀴즈 도전)</button>
+            </div>
+        </div>
+
+        <div id="learn-container" class="hidden">
+            <button id="learn-to-menu" style="background-color: #6c757d; padding: 5px 10px; margin-bottom: 20px;">메뉴로 돌아가기</button>
+            
+            <div class="fraction-concept-area">
+                <div class="fraction-display" id="learn-fraction-display">
+                    <span class="whole-number hidden" id="learn-whole"></span>
+                    <div class="fraction">
+                        <span class="numerator" id="learn-num">0</span>
+                        <span class="denominator" id="learn-den">4</span>
+                    </div>
+
+                    <span id="equals-sign" class="hidden" style="font-size: 5rem; font-weight: bold; margin: 0 10px;">=</span> 
+                    
+                    <span id="natural-result" class="hidden" style="font-size: 5rem; font-weight: bold;"></span> 
+                    
+                    <span class="whole-number hidden" id="result-whole"></span>
+                    <div class="fraction hidden" id="result-fraction">
+                        <span class="numerator" id="result-num"></span>
+                        <span class="denominator" id="result-den"></span>
+                    </div>
+                </div>
+                <p class="concept-text" id="concept-text">분모를 설정하고 조각을 움직여 보세요!</p>
+            </div>
+
+            <div id="pizza-area">
+                </div>
+
+            <div class="control-buttons">
+                <button id="add-slice">+</button>
+                <button id="remove-slice">-</button>
+                
+                <input type="number" id="denominator-input" min="2" max="12" value="4">
+                <button id="set-custom-denominator">분모 설정</button>
+            </div>
+        </div>
+
+
+        <div id="quiz-container" class="hidden">
+            <button id="quiz-to-menu" style="background-color: #6c757d; padding: 5px 10px; margin-bottom: 20px;">메뉴로 돌아가기</button>
+            
+            <div id="start-screen">
+                <h2>알쏭달쏭 분수 퀴즈!</h2>
+
+                <div style="font-size: 1.2rem; font-weight: bold; color: #555; margin-bottom: 20px;">
+                    <p>30초 모드 최고 점수: <span id="high-score-30">0</span>점</p>
+                    <p>60초 모드 최고 점수: <span id="high-score-60">0</span>점</p>
+                </div>
+                
+                <p>몇 초 동안 도전할까요?</p>
+                
+                <div style="margin: 20px 0; font-size: 1.2rem;">
+                    <label>
+                        <input type="radio" name="quiz-duration" value="30" checked> 
+                        **30초** (빠른 도전)
+                    </label>
+                    <label style="margin-left: 20px;">
+                        <input type="radio" name="quiz-duration" value="60"> 
+                        **60초** (기본 도전)
+                    </label>
+                </div>
+                
+                <button id="quiz-start-button">퀴즈 시작!</button>
+            </div>
+
+            <div id="result-screen" class="hidden">
+                <h2>게임 끝! 🎉</h2>
+                <h3 id="final-score-text">당신의 점수는 <span id="final-score">0</span>점입니다.</h3>
+                <p>다음에 더 도전해 보세요!</p>
+                <button id="restart-button">다시 시작</button>
+            </div>
+
+            <div class="quiz-content">
+                <div class="status-bar hidden">
+                    <div id="timer">남은 시간: <span>60</span>초</div>
+                    <div id="score">점수: <span>0</span>점</div>
+                </div>
+
+                <div class="question-area hidden">
+                    <div class="fraction-display">
+                        <span class="whole-number hidden"></span>
+                        <div class="fraction">
+                            <span class="numerator"></span>
+                            <span class="denominator"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="feedback" id="feedback"></div>
+
+                <div id="quiz-note">
+                    💡 자연수와 가분수가 모두 될 수 있는 분수는 **'자연수'만 정답**입니다.
+                </div>
+                <div class="answer-buttons hidden">
+                    <button class="btn-proper" data-answer="proper">진분수</button>
+                    <button class="btn-improper" data-answer="improper">가분수</button>
+                    <button class="btn-whole" data-answer="whole">자연수</button>
+                    <button class="btn-mixed" data-answer="mixed">대분수</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+<script>
+// =========================================================================
+// --- 0. 전역 변수 선언 ---
+// =========================================================================
+let menuScreen, learnContainer, quizContainer, pizzaArea;
+let goLearnButton, goQuizButton, learnToMenuButton, quizToMenuButton;
+let quizStartButton, restartButton;
+
+// LEARN 관련 변수
+let learnWholeEl, learnNumEl, learnDenEl, conceptTextEl;
+let addSliceButton, removeSliceButton, denominatorInput, setCustomDenButton;
+let equalsSignEl, naturalResultEl; 
+let resultWholeEl, resultFractionEl, resultNumEl, resultDenEl; 
+let currentNumerator = 0; 
+let currentDenominator = 4;
+
+// QUIZ 관련 변수
+let timerSpan, scoreSpan, wholeNumberEl, numeratorEl, denominatorEl, feedbackEl, answerButtons;
+let startScreen, resultScreen, finalScoreSpan;
+let statusBar, questionArea, buttonsContainer;
+let highScore30El, highScore60El;
+let quizScore = 0;
+let quizTimeLeft = 60;
+let quizTimerId;
+let currentCorrectAnswer = ""; 
+        
+// =========================================================================
+// --- 1. 공통 함수 (화면 전환, 로직 등) ---
+// =========================================================================
+
+function showScreen(screenId) {
+    const screens = document.querySelectorAll('.main-container > div');
+    
+    screens.forEach(screen => {
+        screen.classList.add('hidden');
+    });
+
+    const targetScreen = document.getElementById(screenId);
+
+    if (targetScreen) {
+        targetScreen.classList.remove('hidden');
+
+        if (screenId === 'menu-screen') {
+            if (pizzaArea) pizzaArea.innerHTML = ''; 
+        } else if (screenId === 'learn-container') {
+            updateConcept();
+            drawPizza();
+        } else if (screenId === 'quiz-container') {
+            setupQuizInitialScreen();
+        }
+    }
+}
+        
+// --- LEARN 로직 (함수들) ---
+
+function handleCustomDenominator() {
+    let newDen = parseInt(denominatorInput.value);
+    
+    if (isNaN(newDen) || newDen < 2 || newDen > 12) {
+        alert("분모는 2부터 12 사이의 정수만 입력할 수 있습니다.");
+        denominatorInput.value = currentDenominator;
+        return;
+    }
+    setDenominator(newDen);
+}
+
+function setDenominator(newDen) {
+    if (currentDenominator === newDen) return;
+    currentDenominator = newDen;
+    currentNumerator = 0; 
+    drawPizza();
+    updateConcept();
+}
+
+function updateFraction(change) {
+    let newNum = currentNumerator + change;
+    if (newNum < 0) return; 
+    
+    currentNumerator = newNum;
+    drawPizza();
+    updateConcept();
+}
+
+function createSlice(index, denominator) {
+    const angle = 360 / denominator;
+    const startAngle = index * angle;
+    const endAngle = (index + 1) * angle;
+
+    const R = 50; 
+    const CX = 50; 
+    const CY = 50; 
+
+    const polarToCartesian = (centerX, centerY, radius, angleInDegrees) => {
+        const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
+        return {
+            x: centerX + (radius * Math.cos(angleInRadians)),
+            y: centerY + (radius * Math.sin(angleInRadians))
+        };
+    }
+
+    const start = polarToCartesian(CX, CY, R, startAngle);
+    const end = polarToCartesian(CX, CY, R, endAngle);
+
+    const largeArcFlag = angle > 180 ? 1 : 0;
+
+    const d = [
+        `M ${CX} ${CY}`, 
+        `L ${start.x} ${start.y}`, 
+        `A ${R} ${R} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`, 
+        'Z' 
+    ].join(' ');
+
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d);
+    path.setAttribute("class", "slice-path"); 
+
+    return path;
+}
+
+function drawPizza() {
+    if (!pizzaArea) return; 
+    pizzaArea.innerHTML = ''; 
+    
+    let totalSlices = currentNumerator; 
+    let wholePizzas = Math.floor(totalSlices / currentDenominator);
+    let remainingSlices = totalSlices % currentDenominator; 
+
+    let totalPizzas = wholePizzas + (remainingSlices > 0 || totalSlices === 0 ? 1 : 0);
+    if (totalPizzas === 0) totalPizzas = 1;
+
+    for (let i = 0; i < totalPizzas; i++) {
+        const pizzaUnit = document.createElement('div');
+        pizzaUnit.className = 'pizza-unit';
+        
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("class", "pizza-svg");
+        svg.setAttribute("width", "100%"); 
+        svg.setAttribute("height", "100%"); 
+        svg.setAttribute("viewBox", "0 0 100 100");
+        
+        let slicesToFill = 0;
+        if (i < wholePizzas) {
+            slicesToFill = currentDenominator;
+        } else if (i === wholePizzas && remainingSlices > 0) {
+            slicesToFill = remainingSlices;
+        } else if (totalPizzas === 1 && totalSlices === 0) {
+            slicesToFill = 0;
+        }
+
+        for (let j = 0; j < currentDenominator; j++) {
+            const slicePath = createSlice(j, currentDenominator);
+            if (j < slicesToFill) {
+                slicePath.classList.add('filled');
+            }
+            svg.appendChild(slicePath);
+        }
+        
+        pizzaUnit.appendChild(svg);
+        pizzaArea.appendChild(pizzaUnit);
+    }
+}
+
+function updateConcept() {
+    if (!denominatorInput || !equalsSignEl || !conceptTextEl) return;
+    
+    let whole = Math.floor(currentNumerator / currentDenominator);
+    let remaining = currentNumerator % currentDenominator;
+
+    denominatorInput.value = currentDenominator;
+    
+    // --- 1. 모든 결과 요소 초기 숨김 처리 ---
+    if (learnWholeEl) learnWholeEl.classList.add('hidden'); 
+    if (equalsSignEl) equalsSignEl.classList.add('hidden'); 
+    if (naturalResultEl) naturalResultEl.classList.add('hidden'); 
+    if (resultWholeEl) resultWholeEl.classList.add('hidden'); 
+    if (resultFractionEl) resultFractionEl.classList.add('hidden'); 
+
+    // 좌측 분수 기본값 설정 (가분수/진분수)
+    if (learnNumEl) learnNumEl.textContent = currentNumerator; 
+    if (learnDenEl) learnDenEl.textContent = currentDenominator; 
+
+    // --- 2. 로직 분기 처리 ---
+
+    // A. 가분수 & 대분수 형태 (나머지가 0이 아닌 경우, ex: 6/5 = 1과 1/5)
+    if (currentNumerator > currentDenominator && remaining !== 0) {
+        
+        if (equalsSignEl) equalsSignEl.classList.remove('hidden'); 
+
+        if (resultWholeEl) resultWholeEl.textContent = whole;
+        if (resultNumEl) resultNumEl.textContent = remaining; 
+        if (resultDenEl) resultDenEl.textContent = currentDenominator;
+        
+        if (resultWholeEl) resultWholeEl.classList.remove('hidden'); 
+        if (resultFractionEl) resultFractionEl.classList.remove('hidden'); 
+        
+        let mixedText = `${whole}과 ${remaining}/${currentDenominator}`;
+        conceptTextEl.textContent = `피자 한 판을 넘겼어요! 분자가 더 크니 '가분수'예요. ( ${mixedText} '대분수'와 같아요.)`;
+    } 
+    // B. 자연수 형태 (나머지가 0인 경우, ex: 5/5 = 1)
+    else if (remaining === 0 && whole > 0) {
+        
+        if (equalsSignEl) equalsSignEl.classList.remove('hidden');
+
+        if (naturalResultEl) naturalResultEl.textContent = whole;
+        if (naturalResultEl) naturalResultEl.classList.remove('hidden');
+        
+        conceptTextEl.textContent = `(${currentNumerator}/${currentDenominator} = ${whole}) 피자가 딱 ${whole}판! 이것은 '자연수'예요.`;
+    } 
+    // C. 진분수 또는 0/D 형태
+    else {
+        
+        if (currentNumerator === 0) {
+            conceptTextEl.textContent = `분모를 설정하고 '+' 버튼을 눌러 피자 조각을 채워보세요.`;
+        } else {
+            conceptTextEl.textContent = `피자 한 판보다 작죠? 분자가 작아요. 이것이 바로 '진분수'예요.`;
+        }
+    }
+}
+
+// --- QUIZ 로직 (함수들) ---
+
+function loadHighScore() {
+    const savedScore30 = localStorage.getItem('fractionQuizHighScore_30');
+    if (highScore30El) highScore30El.textContent = savedScore30 ? parseInt(savedScore30) : 0;
+    
+    const savedScore60 = localStorage.getItem('fractionQuizHighScore_60');
+    if (highScore60El) highScore60El.textContent = savedScore60 ? parseInt(savedScore60) : 0;
+}
+
+function setupQuizInitialScreen() {
+    if (statusBar) statusBar.classList.add('hidden');
+    if (questionArea) questionArea.classList.add('hidden');
+    if (buttonsContainer) buttonsContainer.classList.add('hidden');
+    if (feedbackEl) feedbackEl.textContent = "";
+
+    if (startScreen) startScreen.classList.remove('hidden');
+    if (resultScreen) resultScreen.classList.add('hidden');
+    
+    loadHighScore(); 
+}
+
+function startQuiz() {
+    if (!startScreen || !statusBar || !scoreSpan) return;
+    
+    startScreen.classList.add('hidden');
+    resultScreen.classList.add('hidden');
+    
+    statusBar.classList.remove('hidden');
+    questionArea.classList.remove('hidden');
+    buttonsContainer.classList.remove('hidden');
+
+    feedbackEl.textContent = "";
+
+    quizScore = 0;
+    
+    const selectedDuration = document.querySelector('input[name="quiz-duration"]:checked').value;
+    quizTimeLeft = parseInt(selectedDuration);
+
+    scoreSpan.textContent = quizScore;
+    timerSpan.textContent = quizTimeLeft;
+    
+    generateQuestion();
+    startTimer();
+    
+    answerButtons.forEach(button => {
+        button.removeEventListener("click", checkAnswer);
+        button.addEventListener("click", checkAnswer);
+    });
+}
+
+function startTimer() {
+    clearInterval(quizTimerId); 
+    quizTimerId = setInterval(() => {
+        quizTimeLeft--;
+        timerSpan.textContent = quizTimeLeft;
+        if (quizTimeLeft <= 0) {
+            clearInterval(quizTimerId);
+            endGame(); 
+        }
+    }, 1000); 
+}
+
+function endGame() {
+    if (!statusBar || !questionArea || !buttonsContainer || !finalScoreSpan || !resultScreen) return;
+    
+    statusBar.classList.add('hidden');
+    questionArea.classList.add('hidden');
+    buttonsContainer.classList.add('hidden');
+    
+    finalScoreSpan.textContent = quizScore;
+    resultScreen.classList.remove('hidden');
+    
+    const selectedDuration = document.querySelector('input[name="quiz-duration"]:checked').value;
+    const storageKey = `fractionQuizHighScore_${selectedDuration}`;
+    const currentHighScore = localStorage.getItem(storageKey) ? parseInt(localStorage.getItem(storageKey)) : 0;
+    
+    if (quizScore > currentHighScore) {
+        localStorage.setItem(storageKey, quizScore);
+    } 
+
+    answerButtons.forEach(button => {
+        button.removeEventListener("click", checkAnswer);
+    });
+    
+    loadHighScore(); 
+}
+
+function randomQuiz(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function generateQuestion() {
+    if (!feedbackEl || !numeratorEl || !denominatorEl) return;
+    
+    feedbackEl.textContent = "";
+    feedbackEl.className = "feedback";
+    
+    const questionType = randomQuiz(0, 3);
+    let whole, num, den;
+    
+    switch (questionType) {
+        case 0: // 진분수 (Proper)
+            den = randomQuiz(4, 9); 
+            num = randomQuiz(1, den - 1); 
+            currentCorrectAnswer = "proper";
+            displayQuizFraction(null, num, den);
+            break;
+        case 1: // 가분수 (Improper)
+            den = randomQuiz(3, 8);
+            num = randomQuiz(den + 1, den * 2);
+            // 자연수로 떨어지는 경우(예: 6/3)를 방지하여 'improper'가 명확한 문제만 생성
+            if (num % den === 0) { num++; } 
+            currentCorrectAnswer = "improper";
+            displayQuizFraction(null, num, den);
+            break;
+        case 2: // 자연수 (Whole)
+            den = randomQuiz(2, 5);
+            num = den * randomQuiz(1, 4); 
+            currentCorrectAnswer = "whole"; // 4/4, 8/4 등은 'whole'만 정답
+            displayQuizFraction(null, num, den);
+            break;
+        case 3: // 대분수 (Mixed)
+            whole = randomQuiz(1, 5); 
+            den = randomQuiz(3, 9);
+            num = randomQuiz(1, den - 1);
+            currentCorrectAnswer = "mixed";
+            displayQuizFraction(whole, num, den);
+            break;
+    }
+}
+
+function displayQuizFraction(whole, num, den) {
+    if (!wholeNumberEl || !numeratorEl || !denominatorEl) return;
+    
+    if (whole) {
+        wholeNumberEl.textContent = whole;
+        wholeNumberEl.classList.remove("hidden");
+    } else {
+        wholeNumberEl.classList.add("hidden");
+    }
+    
+    numeratorEl.textContent = num;
+    denominatorEl.textContent = den;
+}
+
+function checkAnswer(event) {
+    const selectedAnswer = event.target.dataset.answer;
+
+    // 최종 수정된 로직: 선택된 답변과 시스템 정답이 정확히 일치해야만 정답 처리
+    let isCorrect = (selectedAnswer === currentCorrectAnswer);
+
+    if (isCorrect) {
+        quizScore++;
+        scoreSpan.textContent = quizScore;
+        showFeedback("O", "correct");
+    } else {
+        showFeedback("X", "incorrect");
+    }
+    
+    setTimeout(generateQuestion, 300);
+}
+
+function showFeedback(text, className) {
+    if (!feedbackEl) return;
+    feedbackEl.textContent = text;
+    feedbackEl.className = "feedback " + className;
+}
+
+
+// =========================================================================
+// --- 2. DOMContentLoaded: 모든 요소 로드 및 이벤트 연결 ---
+// =========================================================================
+document.addEventListener("DOMContentLoaded", () => {
+    // 1. 모든 화면 컨테이너 요소 연결
+    menuScreen = document.getElementById("menu-screen");
+    learnContainer = document.getElementById("learn-container");
+    quizContainer = document.getElementById("quiz-container");
+    pizzaArea = document.getElementById("pizza-area");
+    
+    // 2. 버튼 요소 연결
+    goLearnButton = document.getElementById("go-learn-button");
+    goQuizButton = document.getElementById("go-quiz-button");
+    learnToMenuButton = document.getElementById("learn-to-menu");
+    quizToMenuButton = document.getElementById("quiz-to-menu");
+    quizStartButton = document.getElementById("quiz-start-button");
+    restartButton = document.getElementById("restart-button"); 
+
+    // 3. LEARN 관련 요소 연결
+    learnWholeEl = document.getElementById("learn-whole");
+    learnNumEl = document.getElementById("learn-num");
+    learnDenEl = document.getElementById("learn-den");
+    conceptTextEl = document.getElementById("concept-text");
+    addSliceButton = document.getElementById("add-slice");
+    removeSliceButton = document.getElementById("remove-slice");
+    denominatorInput = document.getElementById("denominator-input");
+    setCustomDenButton = document.getElementById("set-custom-denominator");
+    
+    equalsSignEl = document.getElementById("equals-sign"); 
+    naturalResultEl = document.getElementById("natural-result");
+
+    resultWholeEl = document.getElementById("result-whole");
+    resultFractionEl = document.getElementById("result-fraction");
+    resultNumEl = document.getElementById("result-num");
+    resultDenEl = document.getElementById("result-den");
+    
+    // 4. QUIZ 관련 요소 연결
+    timerSpan = document.querySelector("#timer span");
+    scoreSpan = document.querySelector("#score span");
+    wholeNumberEl = document.querySelector(".question-area .whole-number");
+    numeratorEl = document.querySelector(".question-area .numerator");
+    denominatorEl = document.querySelector(".question-area .denominator");
+    feedbackEl = document.getElementById("feedback");
+    answerButtons = document.querySelectorAll(".answer-buttons button");
+    startScreen = document.getElementById("start-screen"); 
+    resultScreen = document.getElementById("result-screen");
+    finalScoreSpan = document.getElementById("final-score");
+    statusBar = document.querySelector(".status-bar");
+    questionArea = document.querySelector(".question-area");
+    buttonsContainer = document.querySelector(".answer-buttons");
+    highScore30El = document.getElementById("high-score-30");
+    highScore60El = document.getElementById("high-score-60");
+
+
+    // 5. 이벤트 리스너 연결
+    if (goLearnButton) goLearnButton.addEventListener("click", () => showScreen('learn-container')); 
+    if (goQuizButton) goQuizButton.addEventListener("click", () => showScreen('quiz-container'));  
+    if (learnToMenuButton) learnToMenuButton.addEventListener("click", () => showScreen('menu-screen'));
+    if (quizToMenuButton) quizToMenuButton.addEventListener("click", () => {
+        clearInterval(quizTimerId);
+        showScreen('menu-screen');
+    });
+
+    // LEARN 컨트롤 버튼 연결
+    if (addSliceButton) addSliceButton.addEventListener("click", () => updateFraction(1));
+    if (removeSliceButton) removeSliceButton.addEventListener("click", () => updateFraction(-1));
+    if (setCustomDenButton) setCustomDenButton.addEventListener("click", handleCustomDenominator);
+
+
+    // 퀴즈 시작/재시작 버튼 연결
+    if (quizStartButton) quizStartButton.addEventListener("click", startQuiz);
+    if (restartButton) restartButton.addEventListener("click", startQuiz);
+    
+    // 6. 앱 시작
+    showScreen('menu-screen');
+});
+</script>
+</body>
+</html>
